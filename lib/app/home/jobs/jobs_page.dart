@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
+import 'package:time_tracker_flutter_course/app/home/jobs/edit_job_page.dart';
+import 'package:time_tracker_flutter_course/app/home/jobs/job_list_tile.dart';
+import 'package:time_tracker_flutter_course/app/home/jobs/list_items_builder.dart';
 import 'package:time_tracker_flutter_course/app/home/models/job.dart';
 import 'package:time_tracker_flutter_course/common_widgets/platform_alert_dialog.dart';
 import 'package:time_tracker_flutter_course/common_widgets/platform_exception_alert_dialog.dart';
 import 'package:time_tracker_flutter_course/services/auth.dart';
 import 'package:time_tracker_flutter_course/services/database.dart';
-import 'package:flutter/services.dart';
 
 class JobsPage extends StatelessWidget {
   Future<void> _signOut(BuildContext context) async {
@@ -26,18 +30,6 @@ class JobsPage extends StatelessWidget {
     ).show(context);
     if (didRequestSignOut == true) {
       _signOut(context);
-    }
-  }
-
-  Future<void> _createJob(BuildContext context) async {
-    try {
-      final database = Provider.of<Database>(context);
-      await database.createJob(Job(name: 'Blogging', ratePerHour: 10));
-    } on PlatformException catch (e) {
-      PlatformExceptionAlertDialog(
-        title: 'Operation failed',
-        exception: e,
-      ).show(context);
     }
   }
 
@@ -62,7 +54,7 @@ class JobsPage extends StatelessWidget {
       body: _buildContents(context),
       floatingActionButton: FloatingActionButton(
         child: Icon(Icons.add),
-        onPressed: () => _createJob(context),
+        onPressed: () => EditJobPage.show(context),
       ),
     );
   }
@@ -72,22 +64,32 @@ class JobsPage extends StatelessWidget {
     return StreamBuilder<List<Job>>(
       stream: database.jobsStream(),
       builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          final jobs = snapshot.data;
-          final children = jobs
-              .map((job) => Text('name ${job.name} with ${job.ratePerHour}'))
-              .toList();
-          return ListView(children: children);
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Text('Some error occurred'),
-          );
-        }
-        return Center(
-          child: CircularProgressIndicator(),
+        return ListItemsBuilder<Job>(
+          snapshot: snapshot,
+          itemBuilder: (context, job) => Dismissible(
+            key: Key('job-${job.id}'),
+            background: Container(color: Colors.red),
+            onDismissed: (direction) => _delete(context, job),
+            direction: DismissDirection.endToStart,
+            child: JobListTile(
+              job: job,
+              onTap: () => EditJobPage.show(context, job: job),
+            ),
+          ),
         );
       },
     );
+  }
+
+  Future<void> _delete(BuildContext context, Job job) async {
+    try {
+      final database = Provider.of<Database>(context);
+      await database.deleteJob(job);
+    } on PlatformException catch (e) {
+      PlatformExceptionAlertDialog(
+        title: 'Operation Failed',
+        exception: e,
+      ).show(context);
+    }
   }
 }
